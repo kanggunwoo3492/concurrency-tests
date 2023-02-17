@@ -2,6 +2,8 @@ package com.hebeyond.arllimtester.service
 
 import com.hebeyond.arllimtester.persistence.Article
 import com.hebeyond.arllimtester.repository.ArticleRepository
+import jakarta.persistence.LockModeType
+import jakarta.persistence.QueryHint
 import java.lang.Thread.sleep
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -9,6 +11,9 @@ import org.assertj.core.api.Assertions
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.QueryHints
+import org.springframework.transaction.annotation.Transactional
 
 @SpringBootTest
 class ArticleServiceConcurrencyTest2 @Autowired constructor(
@@ -17,9 +22,11 @@ class ArticleServiceConcurrencyTest2 @Autowired constructor(
 ) {
     private val service = Executors.newFixedThreadPool(100)
 
+    private var methodCalled = 0
     @Test
     fun test7() {
         articleRepository.deleteAll()
+        methodCalled = 0
 
         val articles = mutableListOf<Article>()
         var longId = 1L
@@ -32,8 +39,8 @@ class ArticleServiceConcurrencyTest2 @Autowired constructor(
 
         articleRepository.saveAll(articles)
 
-        val latch = CountDownLatch(10)
-        for (i in 1..10) {
+        val latch = CountDownLatch(100)
+        for (i in 1..100) {
             service.execute {
                 myApiV2()
                 latch.countDown()
@@ -49,8 +56,12 @@ class ArticleServiceConcurrencyTest2 @Autowired constructor(
         Assertions.assertThat(
             findAll.map { it.readCount }
         ).allMatch { it == 1 }
+        println("methodCalled: $methodCalled")
     }
 
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @QueryHints(value = [QueryHint(name = "jakarta.persistence.lock.timeout", value = "0")])
+    @Transactional(readOnly = true)
     fun myApiV2() {
         val newArticles = articleService.findByChangeHappenedFalse()
         println("newArticles.size: ${newArticles.size}")
@@ -62,11 +73,14 @@ class ArticleServiceConcurrencyTest2 @Autowired constructor(
 
         chunked.forEach { chunk ->
             val updatedArticles = chunk.map { article ->
+                if (article.changeHappened) {
+                    return@map article
+                }
+                methodCalled++
                 article.changeHappened = true
                 article.readCount++
                 article
             }
-
             articleService.save(updatedArticles)
         }
     }

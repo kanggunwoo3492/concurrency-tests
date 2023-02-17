@@ -2,12 +2,14 @@ package com.hebeyond.arllimtester.service
 
 import com.hebeyond.arllimtester.persistence.Article
 import com.hebeyond.arllimtester.repository.ArticleRepository
+import jakarta.persistence.LockModeType
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import org.assertj.core.api.Assertions
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.transaction.annotation.Transactional
 
 @SpringBootTest
@@ -55,6 +57,7 @@ class ArticleServiceConcurrencyTest3 @Autowired constructor(
 
         println("methodCalled: $methodCalled")
     }
+    @Lock(LockModeType.PESSIMISTIC_READ)
     @Transactional
     fun myApi() {
         val newArticles = articleService.findByChangeHappenedFalse()

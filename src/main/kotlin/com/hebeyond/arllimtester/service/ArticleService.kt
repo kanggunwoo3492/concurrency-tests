@@ -29,6 +29,14 @@ class ArticleService(
         }
         articleRepository.saveAll(articles)
     }
+    @Transactional
+    fun getMostRecentArticleAndSaveAsChanged(): Article {
+        val article = articleRepository.findAllByChangeHappened(false).first()
+        article.changeHappened = true
+        article.readCount++
+        articleRepository.save(article)
+        return article
+    }
 
     fun getRequiredData(): MutableList<Article> {
         return articleRepository.findAllByChangeHappened(false)
@@ -39,9 +47,6 @@ class ArticleService(
         changeHappenedProcess(articles)
     }
 
-    @Lock(LockModeType.PESSIMISTIC_READ)
-    @QueryHints(value = [QueryHint(name = "jakarta.persistence.lock.timeout", value = "0")])
-    @Transactional(readOnly = true)
     fun findByChangeHappenedFalse(): MutableList<Article> {
         return articleRepository.findAllByChangeHappened(false)
     }
